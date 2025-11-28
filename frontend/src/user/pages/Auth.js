@@ -1,0 +1,184 @@
+import React, { useState, useContext } from "react";
+
+import Card from "../../shared/components/UIElements/Card";
+import Input from "../../shared/components/FormElements/Input";
+import Button from "../../shared/components/FormElements/Button";
+import ErrorModal from "../../shared/components/UIElements/ErrorModal";
+import LoadingSpinner from "../../shared/components/UIElements/LoadingSpinner";
+import {
+  VALIDATOR_EMAIL,
+  VALIDATOR_MINLENGTH,
+  VALIDATOR_REQUIRE,
+} from "../../shared/util/validators";
+import { useForm } from "../../shared/hooks/form-hook";
+import { useHttpClient } from "../../shared/hooks/http-hook";
+import { AuthContext } from "../../shared/context/auth-context";
+import "./Auth.css";
+
+const Auth = () => {
+  const auth = useContext(AuthContext);
+  const [isLoginMode, setIsLoginMode] = useState(true);
+  const { isLoading, error, sendRequest, clearError } = useHttpClient();
+
+  // form setup
+  const [formState, inputHandler, setFormData] = useForm(
+    {
+      email: {
+        value: "",
+        isValid: false,
+      },
+      password: {
+        value: "",
+        isValid: false,
+      },
+    },
+    false
+  );
+
+  // switching between login signuip
+  const switchModeHandler = () => {
+    if (!isLoginMode) {
+      // swicth to login remve extra fields
+      setFormData(
+        {
+          ...formState.inputs,
+          firstName: undefined,
+          lastName: undefined,
+          mobileNumber: undefined,
+        },
+        formState.inputs.email.isValid && formState.inputs.password.isValid
+      );
+    } else {
+      // signup -> add new fields
+      setFormData(
+        {
+          ...formState.inputs,
+          firstName: { value: "", isValid: false },
+          lastName: { value: "", isValid: false },
+          mobileNumber: { value: "", isValid: false },
+        },
+        false
+      );
+    }
+    setIsLoginMode((prev) => !prev);
+  };
+
+  // form submission
+  const authSubmitHandler = async (event) => {
+    event.preventDefault();
+
+    if (isLoginMode) {
+      // login
+      try {
+        const responseData = await sendRequest(
+          "http://localhost:5005/api/users/login",
+          "POST",
+          JSON.stringify({
+            email: formState.inputs.email.value,
+            password: formState.inputs.password.value,
+          }),
+          { "Content-Type": "application/json" }
+        );
+
+        auth.login(responseData.userId);
+      } catch (err) {}
+    } else {
+      // signup
+      try {
+        const responseData = await sendRequest(
+          "http://localhost:5005/api/users/signup",
+          "POST",
+          JSON.stringify({
+            firstName: formState.inputs.firstName.value,
+            lastName: formState.inputs.lastName.value,
+            mobileNumber: formState.inputs.mobileNumber.value,
+            email: formState.inputs.email.value,
+            password: formState.inputs.password.value,
+          }),
+          { "Content-Type": "application/json" }
+        );
+
+        auth.login(responseData.user.id);
+      } catch (err) {}
+    }
+  };
+
+  return (
+    <div className="auth-page">
+      <ErrorModal error={error} onClear={clearError} />
+      <Card className="authentication">
+        {isLoading && <LoadingSpinner asOverlay />}
+        <h2>Login Required</h2>
+        <hr />
+
+        <form onSubmit={authSubmitHandler}>
+          {/* ---------- SIGNUP EXTRA FIELDS ---------- */}
+          {!isLoginMode && (
+            <>
+              <Input
+                id="firstName"
+                element="input"
+                type="text"
+                label="First Name"
+                validators={[VALIDATOR_REQUIRE()]}
+                errorText="Please enter your first name."
+                onInput={inputHandler}
+              />
+
+              <Input
+                id="lastName"
+                element="input"
+                type="text"
+                label="Last Name"
+                validators={[VALIDATOR_REQUIRE()]}
+                errorText="Please enter your last name."
+                onInput={inputHandler}
+              />
+
+              <Input
+                id="mobileNumber"
+                element="input"
+                type="text"
+                label="Mobile Number"
+                validators={[VALIDATOR_REQUIRE()]}
+                errorText="Please enter your mobile number."
+                onInput={inputHandler}
+              />
+            </>
+          )}
+
+          {/* ---------- ALWAYS SHOWN ---------- */}
+          <Input
+            id="email"
+            element="input"
+            type="email"
+            label="E-Mail"
+            validators={[VALIDATOR_EMAIL()]}
+            errorText="Please enter a valid email."
+            onInput={inputHandler}
+          />
+
+          <Input
+            id="password"
+            element="input"
+            type="password"
+            label="Password"
+            validators={[VALIDATOR_MINLENGTH(6)]}
+            errorText="Please enter at least 6 characters."
+            onInput={inputHandler}
+          />
+
+          <Button type="submit" disabled={!formState.isValid}>
+            {isLoginMode ? "LOGIN" : "SIGNUP"}
+          </Button>
+        </form>
+
+        <Button inverse onClick={switchModeHandler}>
+          SWITCH TO {isLoginMode ? "SIGNUP" : "LOGIN"}
+        </Button>
+      </Card>
+    </div>
+  );
+};
+
+export default Auth;
